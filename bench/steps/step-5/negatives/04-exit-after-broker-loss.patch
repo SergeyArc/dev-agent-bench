@@ -1,0 +1,10 @@
+--- a/src/tracksvc/worker/consumer.py
++++ b/src/tracksvc/worker/consumer.py
+@@ -69,6 +69,7 @@ class Consumer:
+                 await self._consume_on_one_connection(stop)
+             except _BROKER_FAILURES as error:
+                 logger.warning("Broker connection failed: %r", error)
++                return
+             if not stop.is_set():
+                 logger.info("Reconnecting to the broker in %s s", RECONNECT_DELAY_SECONDS)
+                 await _wait_first(stop.wait(), asyncio.sleep(RECONNECT_DELAY_SECONDS))

@@ -1,0 +1,20 @@
+--- a/src/tracksvc/worker/handler.py
++++ b/src/tracksvc/worker/handler.py
+@@ -72,14 +72,14 @@ class MessageHandler:
+         message_id = delivery.message_id
+         if message_id is None or not is_valid_message_id(message_id):
+             return DeadLetter(INVALID_MESSAGE)
+         retry_count = parse_retry_count(delivery.headers)
++        body = parse_body(delivery.body)
++        if retry_count is None or body is None:
++            return DeadLetter(INVALID_MESSAGE)
+         try:
+             async with self._unit_of_work() as uow:
+                 if await IsMessageProcessed(uow).execute(message_id):
+                     return Done()
+-                body = parse_body(delivery.body)
+-                if retry_count is None or body is None:
+-                    return DeadLetter(INVALID_MESSAGE)
+                 await ExtendTrack(uow).execute(message_id, body.track_id, body.delta)
+                 return Done()
+         except tuple(_FAILURE_CODES) as error:

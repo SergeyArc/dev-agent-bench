@@ -1,0 +1,17 @@
+--- a/src/tracksvc/api/app.py
++++ b/src/tracksvc/api/app.py
+@@ -10,11 +10,13 @@
+ from tracksvc.config import read_database_url
+ from tracksvc.infrastructure.database import create_engine
+ 
++DATABASE_URL = read_database_url()
++
+ 
+ @asynccontextmanager
+ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+     """Own the database engine: create it at start-up and dispose of it at shutdown."""
+-    engine = create_engine(read_database_url())
++    engine = create_engine(DATABASE_URL)
+     app.state.engine = engine
+     try:
+         yield

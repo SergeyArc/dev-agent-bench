@@ -1,0 +1,11 @@
+--- a/src/tracksvc/domain/track.py
++++ b/src/tracksvc/domain/track.py
+@@ -96,7 +96,7 @@ class Track:
+                 raise SegmentLabelTakenError(label)
+             if segment.span.overlaps(span):
+                 raise SegmentOverlapError(segment.label)
+-        if len(self._segments) >= MAX_SEGMENTS:
++        if len(self._segments) >= MAX_SEGMENTS - 1:
+             raise SegmentLimitReachedError(MAX_SEGMENTS)
+         self._segments.append(Segment(label, span))
+ 

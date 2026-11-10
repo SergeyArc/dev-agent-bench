@@ -1,0 +1,13 @@
+# Import rules of the layers (AGENTS.md, "Layout and layers"). Do not modify this file.
+[importlinter]
+root_package = tracksvc
+include_external_packages = True
+
+[importlinter:contract:layers]
+name = Layer rule
+type = layers
+layers =
+    (tracksvc.api) : (tracksvc.worker)
+    (tracksvc.infrastructure)
+    (tracksvc.application)
+    (tracksvc.domain)

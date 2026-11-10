@@ -1,0 +1,16 @@
+--- a/src/tracksvc/worker/consumer.py
++++ b/src/tracksvc/worker/consumer.py
+@@ -115,12 +115,12 @@ class Consumer:
+         default_exchange: AbstractExchange,
+     ) -> None:
+         delivery = Delivery(message.body, message.message_id, message.headers)
++        await message.ack()
+         outcome = await self._handler.handle(delivery)
+         if isinstance(outcome, Retry):
+             await exchange.publish(_copy(message, outcome), ROUTING_KEY)
+         elif isinstance(outcome, DeadLetter):
+             await default_exchange.publish(_copy(message, outcome), DEAD_QUEUE)
+-        await message.ack()
+ 
+ 
+ async def _declare_topology(channel: AbstractChannel) -> tuple[AbstractExchange, AbstractQueue]:

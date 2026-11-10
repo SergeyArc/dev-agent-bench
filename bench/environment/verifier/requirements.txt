@@ -1,0 +1,63 @@
+anyio==4.15.1
+    # via httpx
+ast-serialize==0.11.2
+    # via mypy
+certifi==2026.7.22
+    # via
+    #   httpcore
+    #   httpx
+click==8.5.0
+    # via import-linter
+grimp==3.17
+    # via import-linter
+h11==0.16.0
+    # via httpcore
+httpcore==1.0.9
+    # via httpx
+httpx==0.28.1
+    # via -r requirements.in
+idna==3.20
+    # via
+    #   anyio
+    #   httpx
+import-linter==2.15
+    # via -r requirements.in
+iniconfig==2.3.0
+    # via pytest
+librt==0.16.0
+    # via mypy
+markdown-it-py==4.2.0
+    # via rich
+mdurl==0.1.2
+    # via markdown-it-py
+mypy==2.3.1
+    # via -r requirements.in
+mypy-extensions==1.1.0
+    # via mypy
+packaging==26.3
+    # via pytest
+pathspec==1.1.1
+    # via mypy
+pika==1.4.4
+    # via -r requirements.in
+pluggy==1.6.0
+    # via pytest
+psycopg==3.3.6
+    # via -r requirements.in
+psycopg-binary==3.3.6
+    # via psycopg
+pygments==2.21.0
+    # via
+    #   pytest
+    #   rich
+pytest==9.1.1
+    # via -r requirements.in
+rich==15.0.0
+    # via import-linter
+ruff==0.16.9
+    # via -r requirements.in
+typing-extensions==4.16.0
+    # via
+    #   anyio
+    #   import-linter
+    #   mypy

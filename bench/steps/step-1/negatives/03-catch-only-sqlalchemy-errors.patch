@@ -1,0 +1,9 @@
+--- a/src/tracksvc/infrastructure/database.py
++++ b/src/tracksvc/infrastructure/database.py
+@@ -38,5 +38,5 @@
+     # SQLAlchemy wraps what the server reports; network failures while connecting
+     # (refused, unresolved host) and timeouts (TimeoutError) arrive as OSError.
+-    except (SQLAlchemyError, OSError):
++    except SQLAlchemyError:
+         return False
+     return True

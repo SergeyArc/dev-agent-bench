@@ -1,0 +1,18 @@
+--- a/src/tracksvc/api/app.py
++++ b/src/tracksvc/api/app.py
+@@ -1,6 +1,7 @@
+ """The ASGI application and its lifespan."""
+ 
++import os
+ from collections.abc import AsyncIterator
+ from contextlib import asynccontextmanager
+ 
+ from fastapi import FastAPI
+@@ -14,5 +15,6 @@
+ @asynccontextmanager
+ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+     """Own the database engine: create it at start-up and dispose of it at shutdown."""
++    _rabbitmq_url = os.environ["RABBITMQ_URL"]
+     engine = create_engine(read_database_url())
+     app.state.engine = engine
+     try:

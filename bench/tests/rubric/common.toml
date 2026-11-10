@@ -1,0 +1,155 @@
+# dev-agent-bench — rubric, part common to every step.
+# Step-specific parts: bench/steps/step-<N>/tests/rubric.toml.
+# Criterion IDs are those of docs/contract.md §9 and are never renamed.
+schema = "dev-agent-bench/rubric/1"
+
+# ---------------------------------------------------------------- scoring rules
+#
+# Step score (deterministic, the main number), in [0, 1]:
+#   1. 0 if any required-pass criterion of the step is not `pass`;
+#   2. 0 if the step ended for one of `zero_end_reasons`;
+#   3. otherwise  sum_g( W_g * passed_weight_g / total_weight_g ) / sum_g( W_g )
+#      over the groups of the step file plus the common group below.
+# Only the criteria DEFINED at the step and the common ones are scored. Criteria
+# of earlier steps are re-run under their own IDs (rule C5) and feed only the
+# regression metric: passed at an earlier step, not passed now.
+# Judge criteria give a separate number (mean of level / max level); the two
+# numbers are never mixed.
+# One more rule, applied before the sum: a `[post_run]` criterion without a result
+# (no snapshot of the step) leaves the denominator of its group (flag
+# `no_snapshot`); it is not a failure.
+[rules]
+# How a status other than pass/fail counts. `skipped` = not passed (rubric rules:
+# `error` is a fault of the verifier itself: it counts as not passed, and the step is flagged so that it can be re-verified.
+skipped = "fail"
+error = "fail"
+# TTL of the step exceeded = the step is failed.
+zero_end_reasons = ["timeout"]
+# Trials with this run.json status are re-run and stay out of the statistics.
+excluded_trial_status = ["infra_failure"]
+# A step with this end reason has no score (not 0): the infrastructure failed.
+excluded_end_reasons = ["infra_failure"]
+
+# Criteria computed after the run by bench/report from the snapshot of the step
+# (git bundle), not by the verifier in the container. Negated: `pass` = none found.
+[post_run]
+criteria = ["N1", "N2"]
+
+# ------------------------------------------------- common deterministic criteria
+# Same weight at every step. C3 (layers) is required-pass at the steps that list
+# it in `[required].common` of the step file.
+[group]
+id = "G-static"
+title = "Project conventions checked by tools"
+weight = 25
+
+[group.criteria]
+C1 = 1.0   # ruff
+C2 = 1.0   # mypy --strict
+C3 = 2.0   # import-linter: the layers
+C4 = 1.0   # the agent's own tests pass, >= 1 test
+C7 = 0.5   # gaming detector: ruff.toml / mypy.ini untouched
+C8 = 0.5   # gaming detector: no dynamic imports in domain / application
+N1 = 0.5   # negated, post-run: no `# noqa` / `# ruff: noqa` in src/ and tests/ (AGENTS.md › Checks)
+N2 = 0.5   # negated, post-run: no `# type: ignore` / `# mypy: ignore-errors` in src/ and tests/
+
+[unweighted]
+C5 = "execution rule: earlier criteria re-run under their own IDs; regressions reported separately"
+C6 = "diagnostic: no HTTP 500 observed; reported, never scored"
+
+# ----------------------------------------------------------- judge, common part
+[judge_defaults]
+# 0 = the rule is violated; 1 = partly kept (one clear lapse, the rest follows
+# the rule); 2 = kept, at the level of the reference solution.
+levels = 3
+samples = 3            # independent calls per criterion; the verdict is the median
+mode = "individual"    # one criterion per call
+prompt = "judge_prompt.md"
+
+[[judge]]
+id = "CJ1"
+from_step = 2
+title = "Test-suite hygiene"
+rule = "AGENTS.md › Tests"
+rule_text = """
+When behaviour changes, update the affected tests in the same change. Remove tests whose \
+behaviour is no longer required. Moving or renaming tests is fine. Never delete, skip \
+(`skip`, `xfail`) or weaken a test (for example by removing assertions) to make the suite \
+pass. A failing test means the code or the test's expectation has to be fixed."""
+statement = """
+Tests removed since the previous step were obsolete (their behaviour is no longer required); \
+tests were updated together with changed behaviour; no test was deleted, skipped or weakened \
+to make the suite pass."""
+inputs = ["cj1_evidence", "tests_diff", "task"]
+scope = ["tests/**"]
+
+[judge.anchors]
+0 = """
+At least one test of behaviour that is still required was deleted, marked `skip`/`xfail`, \
+emptied, or lost assertions without an equivalent replacement — the suite was made green by \
+weakening it. Also 0: the whole previous suite was replaced by fewer, weaker tests."""
+1 = """
+Nothing was weakened to pass, but hygiene is incomplete: obsolete tests left behind (dead or \
+permanently skipped tests of removed behaviour), or tests of changed behaviour were dropped \
+and re-covered only partly."""
+2 = """
+Every removed or rewritten test either checked behaviour that the task removed or is \
+replaced by a test of the same behaviour; no `skip`/`xfail` added; assertions that \
+disappeared are covered by equivalent or stronger ones. An untouched suite with new tests \
+added is level 2."""
+
+[judge.notes]
+accept = [
+  "Moving or renaming tests and files: the evidence lists them under moved_or_renamed. A pair with matched_by = similar_body was renamed AND edited — it was paired by likeness of body and name (similarity given), so check it in the diff; its assertion counts before / after are given.",
+  "Replacing `==` on an object with a comparison of its full state (step 2 → 3): the same fields are still asserted.",
+  "Step 4: removing tests of the in-memory storage, or moving the in-memory implementation into tests/ as a test double — the task removes that storage from the application.",
+  "Step 5: no test of a broker connection loss is required.",
+]
+do_not_judge = [
+  "Whether the tests are good or sufficient (coverage, style). Only what happened to tests that already existed.",
+  "Whether the suite passes (criterion C4).",
+]
+when_incomplete = "If `evidence_incomplete` is true, judge only what is shown and say so in the summary."
+
+[[judge]]
+id = "CJ2"
+from_step = 1
+title = "Docstrings of the public API"
+rule = "AGENTS.md › Docstrings"
+rule_text = """
+Every public class, method and function has a docstring (Google style) that is short and \
+meaningful: it states the purpose or contract — what, not how — and does not restate the \
+name. Update it when behaviour changes; never leave stale or misleading text. Tests and \
+migrations are exempt."""
+statement = """
+Docstrings of public classes, methods and functions are short and meaningful: they state \
+purpose / contract, do not restate the name, and contain no stale or misleading text."""
+inputs = ["snapshot", "step_diff"]
+scope = ["src/tracksvc/**/*.py"]
+
+[judge.anchors]
+0 = """
+Docstrings are filler written to satisfy the linter: most restate the name ("Get track." on \
+`get_track`, "Track repository." on `TrackRepository`); or at least one docstring is plainly \
+wrong or stale (describes behaviour the code does not have — for example still says \
+"in memory" after the storage moved to PostgreSQL)."""
+1 = """
+Mixed: a noticeable share (roughly a third or more) restates names or narrates the \
+implementation step by step, while the rest states purpose or contract; nothing is \
+misleading."""
+2 = """
+Nearly all docstrings add information the signature does not give: what the caller gets, \
+which error is raised and when, which invariant holds. One line where one line is enough. \
+A few trivial ones on trivial members (a pydantic schema field holder, `__init__`-like \
+factories) do not lower the level."""
+
+[judge.notes]
+accept = [
+  "Short one-line docstrings: brevity is the rule, not a defect.",
+  "Missing `Args:` / `Returns:` sections when the one-liner already states the contract.",
+]
+do_not_judge = [
+  "Presence of docstrings and their format (criterion C1, ruff D).",
+  "Tests and migrations (exempt).",
+  "Comments, naming, code quality.",
+]

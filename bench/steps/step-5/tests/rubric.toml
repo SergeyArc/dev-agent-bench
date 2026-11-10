@@ -1,0 +1,224 @@
+# Rubric — step 5 (L3-02): AMQP worker, idempotency, retry, reconnect.
+# Common part and scoring rules: bench/tests/rubric/common.toml.
+schema = "dev-agent-bench/rubric/1"
+step = 5
+name = "L3-02"
+
+# Required-pass at this step is 5.1, 5.3, 5.4, 5.5 only; C3 is weighted but not required.
+[required]
+criteria = ["5.1", "5.3", "5.4", "5.5"]
+common = []
+
+# The other [det] criteria are scored in the groups named by contract §9.
+[[group]]
+id = "G-core"
+title = "Consumes, applies once, records the message (all required-pass)"
+weight = 20
+[group.criteria]
+"5.1" = 1.0
+"5.3" = 1.0
+"5.4" = 1.0
+"5.5" = 1.0
+
+[[group]]
+id = "G-retry"
+title = "Retry, dead-lettering, invalid messages"
+weight = 25
+[group.criteria]
+"5.7" = 1.0
+"5.8" = 1.0
+"5.9" = 1.0
+"5.10" = 1.0
+"5.11" = 1.0
+"5.12" = 1.0
+"5.13" = 1.0
+"5.14" = 1.0
+"5.19" = 1.0
+
+[[group]]
+id = "G-concurrency"
+title = "One effect under simultaneous duplicates and two workers"
+weight = 10
+[group.criteria]
+"5.6" = 1.0
+
+[[group]]
+id = "G-resilience"
+title = "Pre-declared topology, broker outage, shutdown"
+weight = 15
+[group.criteria]
+"5.2" = 1.0
+"5.15" = 1.0
+"5.16" = 1.0
+"5.17" = 1.0
+
+[[group]]
+id = "G-isolation"
+title = "The HTTP application does not depend on the broker"
+weight = 5
+[group.criteria]
+"5.18" = 1.0
+
+# ------------------------------------------------------------------------ judge
+
+[[judge]]
+id = "5.J1"
+title = "Ack after commit, once, awaited"
+rule = "step 5 task › Conventions for message handling"
+rule_text = """
+A message is acknowledged only after its processing has finished and its transaction has \
+been committed. Acknowledge exactly once, await the result, and never acknowledge before \
+the handler has run."""
+statement = """
+Acknowledgement happens only after processing has completed and its transaction committed \
+(ack awaited, never issued twice, never before the handler)."""
+inputs = ["snapshot"]
+scope = ["src/tracksvc/worker/**/*.py", "src/tracksvc/worker.py", "src/tracksvc/infrastructure/**/*.py", "src/tracksvc/application/**/*.py"]
+
+[judge.anchors]
+0 = """
+The delivery is acknowledged before the work is done or committed (`no_ack=True`, \
+auto-ack, `message.process()` wrapped around nothing, ack at the top of the handler); or \
+`ack()` is not awaited; or a path acks twice (explicit ack inside `async with \
+message.process()`), or acks before a retry / dead copy has been published."""
+1 = """
+Ack follows the commit and is awaited on the main paths, but one path is loose: an \
+exception between publish and ack is swallowed so the delivery is neither acked nor left \
+for redelivery on purpose, or the order publish → ack depends on an un-awaited task."""
+2 = """
+One place acknowledges: after the use case returned (transaction committed) or after the \
+retry / dead copy was published and confirmed; `await message.ack()` exactly once per \
+delivery; on connection loss the delivery is left unacknowledged for redelivery. This is \
+what the reference solution does."""
+
+[judge.notes]
+accept = [
+  "`message.process(ignore_processed=True)` with a single explicit ack inside it.",
+  "Leaving a delivery unacknowledged when the channel is gone: redelivery is the specified behaviour.",
+]
+do_not_judge = [
+  "Counts of republished and dead copies (criteria 5.7–5.14).",
+]
+level0_examples = [
+  "Step-5 negative 01: ack before processing.",
+  "Known negatives: ack without await; double ack.",
+]
+
+[[judge]]
+id = "5.J2"
+title = "One owner per resource, released on reconnect and shutdown"
+rule = "AGENTS.md › Resources and lifecycle; step 5 task › Conventions for message handling"
+rule_text = """
+Every long-lived resource (the engine, any client connection) has exactly one explicit \
+owner that creates it and releases it — at shutdown, and whenever the resource is \
+replaced. Nothing is leaked. One database session / unit of work per consumed message, \
+exactly as for a request: it comes from a single provider in the worker's composition \
+root, and the session is released on every path, including errors. The worker never keeps \
+one session for the lifetime of the process."""
+statement = """
+Broker connection, channel and database session each have one explicit owner and are \
+released on reconnect and on shutdown; no leaked resources."""
+inputs = ["snapshot"]
+scope = ["src/tracksvc/worker/**/*.py", "src/tracksvc/worker.py", "src/tracksvc/infrastructure/**/*.py"]
+
+[judge.anchors]
+0 = """
+A resource is leaked or shared wrongly: a new connection / channel is opened on every \
+reconnect without closing the old one, one database session lives for the whole process, \
+the engine is never disposed, or `SIGTERM` exits without closing the connection."""
+1 = """
+Owners are clear and shutdown closes everything, but one release is implicit or missing: \
+the old channel / consumer tag is not cancelled on reconnect (left to the garbage \
+collector or to the library), or the session is closed only on the success path."""
+2 = """
+The worker's composition root owns the engine and the broker connection: creates them at \
+start, closes connection and channel before reconnecting and at shutdown, disposes the \
+engine at shutdown; each message gets its own session from one provider, closed in \
+`finally` / `async with`. This is what the reference solution does (its own reconnect loop)."""
+
+[judge.notes]
+accept = [
+  "`aio_pika.connect_robust`: accepted at level 2 when the close at shutdown is explicit and no ack is issued on a new channel for a delivery of the old one. A hand-written reconnect loop is the reference, not a requirement.",
+  "Transport code in `tracksvc.worker` or in `tracksvc.infrastructure`: either place.",
+]
+do_not_judge = [
+  "Whether the worker survives an outage at run time (criteria 5.15, 5.16) or exits on SIGTERM in time (5.17).",
+]
+
+[[judge]]
+id = "5.J3"
+title = "Business rule reused, transport kept out"
+rule = "step 5 task › Conventions for message handling"
+rule_text = """
+A message handler is an entry point like an HTTP handler: it calls the same \
+capacity-change rule in `domain` / `application` that the rest of the code uses and never \
+re-implements it. Transport details (acknowledgements, headers, retry counters, routing) \
+stay out of `domain` and `application`."""
+statement = """
+The capacity-change business rule is not duplicated in consumer code: it is reused from \
+domain/application. AMQP specifics (acks, headers, retry counters, routing) stay out of \
+domain and application."""
+inputs = ["snapshot"]
+scope = ["src/tracksvc/worker/**/*.py", "src/tracksvc/worker.py", "src/tracksvc/domain/**/*.py", "src/tracksvc/application/**/*.py", "src/tracksvc/infrastructure/**/*.py"]
+
+[judge.anchors]
+0 = """
+The consumer computes the effect itself (`capacity + delta`, the 10000 limit or the sealed \
+check written in worker / infrastructure code, or a raw `UPDATE tracks SET capacity`); or \
+`domain` / `application` know about retry counts, headers, acks or routing keys."""
+1 = """
+The rule is one domain operation and the worker calls a use case, but the layers blur at \
+one point: the handler re-checks a condition the domain already checks, or an application \
+type carries a transport notion (a `retry_count` field, an "ack" flag in the result)."""
+2 = """
+The track has one operation for the capacity change with its limits; one use case applies \
+it and records the message; the worker only parses the delivery, calls the use case and \
+maps its outcome to ack / republish / dead-letter. This is what the reference solution does."""
+
+[judge.notes]
+accept = [
+  "`message_id` as a plain string argument of the use case: the idempotency key is a business input, not a transport detail.",
+  "Failure codes (`track_sealed`, …) derived from domain / application error classes in the worker.",
+  "Validation of the message shape (JSON types, ranges) in the worker: request-shape validation, as in API schemas.",
+]
+do_not_judge = [
+  "Import-direction violations (criterion C3).",
+]
+
+[[judge]]
+id = "5.J4"
+title = "Effect and idempotency record in one transaction"
+rule = "AGENTS.md › Persistence and transactions; step 5 task › Conventions for message handling"
+rule_text = """
+Everything written within one unit of work goes through that single transaction. Never get \
+the effect of one transaction with two commits in a row. The capacity change and the record \
+of the processed message are written in that single transaction by construction."""
+statement = """
+The capacity change and the idempotency record share one transaction by construction, not \
+by two sequential commits."""
+inputs = ["snapshot"]
+scope = ["src/tracksvc/worker/**/*.py", "src/tracksvc/worker.py", "src/tracksvc/application/**/*.py", "src/tracksvc/infrastructure/**/*.py"]
+
+[judge.anchors]
+0 = """
+Two commits: the capacity change is committed and the `processed_messages` row is written \
+in another transaction / session / unit of work (before or after), or the idempotency \
+record lives outside the database (an in-memory set)."""
+1 = """
+One commit covers both writes, but only by convention: the two writes go through \
+different repositories that could be given different sessions, or the duplicate check is a \
+separate earlier transaction with nothing (unique key, lock) tying it to the write."""
+2 = """
+One use case, one unit of work: inside it the duplicate is detected, the track is changed \
+and the `processed_messages` row is inserted through the same session, then one commit; a \
+concurrent duplicate is rejected by the unique key or a lock inside that transaction. This \
+is what the reference solution does."""
+
+[judge.notes]
+accept = [
+  "Insert-first (`INSERT … ON CONFLICT DO NOTHING` and check the row count) or lock-then-check: both tie the check to the write.",
+]
+do_not_judge = [
+  "Whether simultaneous duplicates are applied once at run time (criterion 5.6).",
+]
+level0_examples = ["Step-5 negative 05: the processed row is written in a second commit."]

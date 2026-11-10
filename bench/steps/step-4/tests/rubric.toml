@@ -1,0 +1,237 @@
+# Rubric — step 4 (L3-01): PostgreSQL persistence, one transaction per request.
+# Common part and scoring rules: bench/tests/rubric/common.toml.
+schema = "dev-agent-bench/rubric/1"
+step = 4
+name = "L3-01"
+
+[required]
+criteria = ["4.1", "4.3"]   # the schema exists; a saved track survives a restart
+common = ["C3"]
+
+[[group]]
+id = "G-schema"
+title = "Schema through Alembic"
+weight = 15
+[group.criteria]
+"4.1" = 2.0
+"4.2" = 1.0
+
+[[group]]
+id = "G-persistence"
+title = "Durable, visible, consistent rows"
+weight = 40
+[group.criteria]
+"4.3" = 2.0
+"4.4" = 1.0
+"4.5" = 1.0
+"4.6" = 1.0
+"4.7" = 1.0
+"4.8" = 2.0    # one request = one transaction
+"4.11" = 1.0
+
+[[group]]
+id = "G-concurrency"
+title = "The database as the arbiter (x3 each, never required-pass)"
+weight = 20
+[group.criteria]
+"4.9" = 1.0
+"4.10" = 1.0
+
+# ------------------------------------------------------------------------ judge
+
+[[judge]]
+id = "4.J1"
+title = "Domain is not ORM; mapping in one place"
+rule = "AGENTS.md › Persistence and transactions"
+rule_text = """
+Domain classes are not ORM-mapped classes. Conversion between domain objects and ORM rows \
+is explicit and kept in one place in `infrastructure`, not scattered through query code. A \
+separate mapper class is not required."""
+statement = """
+Domain classes are not ORM-mapped classes; domain ↔ ORM conversion is explicit and \
+localized, not scattered across query code. A separate mapper class is not required."""
+inputs = ["snapshot"]
+scope = ["src/tracksvc/domain/**/*.py", "src/tracksvc/infrastructure/**/*.py"]
+
+[judge.anchors]
+0 = """
+Domain classes are the ORM models (declarative base, `Mapped[...]`, imperative mapping onto \
+the domain class), or the application works with ORM rows as if they were domain objects."""
+1 = """
+Separate domain and ORM classes, but the conversion is repeated inline: each repository \
+method builds `Track(...)` / `TrackRow(...)` field by field on its own, so a new column \
+means editing several queries."""
+2 = """
+ORM models live in `infrastructure`; one pair of functions (or methods) converts row → \
+domain and domain → row, and every query goes through it. This is what the reference \
+solution does (a small mapping module)."""
+
+[judge.notes]
+accept = [
+  "Mapping as module functions, as methods of the repository, or as a mapper class.",
+  "SQLAlchemy Core tables instead of ORM classes, with the same single conversion place.",
+]
+do_not_judge = [
+  "Imports of SQLAlchemy in `domain` (criterion C3).",
+  "Whether rows are written correctly (criteria 4.6, 4.7).",
+]
+
+[[judge]]
+id = "4.J2"
+title = "Storage errors translated at the boundary"
+rule = "AGENTS.md › Persistence and transactions"
+rule_text = """
+Storage errors are translated to domain or application errors at the infrastructure \
+boundary. Driver and ORM exception types are never handled outside `infrastructure`."""
+statement = """
+Storage errors are translated to domain/application errors at the infrastructure boundary; \
+no driver or ORM exception type is handled outside infrastructure."""
+inputs = ["snapshot"]
+scope = ["src/tracksvc/**/*.py"]
+
+[judge.anchors]
+0 = """
+`IntegrityError`, `DBAPIError`, an asyncpg exception or any other driver / ORM type is \
+caught or mapped in `application` or `api`; or the duplicate `code` is not translated at \
+all and surfaces as a generic storage failure."""
+1 = """
+Nothing is handled outside `infrastructure`, but the translation is crude: every \
+`IntegrityError` on any statement becomes "code taken", or the error is recognised by \
+matching the driver's message text."""
+2 = """
+`infrastructure` turns the unique violation on `code` into the application / domain error \
+(by constraint name, SQLSTATE, or by `INSERT … ON CONFLICT`), and outer layers see only \
+their own error types. This is what the reference solution does."""
+
+[judge.notes]
+accept = [
+  "`ON CONFLICT` instead of catching `IntegrityError`: the rule is about where driver exceptions are handled, not about catching a particular one.",
+  "Other storage failures left to become a 500, or mapped to `database_unavailable`.",
+]
+do_not_judge = [
+  "The HTTP result of a duplicate (criteria 2.8, 4.9).",
+  "The readiness probe catching driver errors: it is in `infrastructure` by the rule.",
+]
+level0_examples = ["Step-4 negative 03: the unique conflict leaks as a storage error."]
+
+[[judge]]
+id = "4.J3"
+title = "Explicit transaction boundary owned by the use case"
+rule = "AGENTS.md › Persistence and transactions"
+rule_text = """
+One unit of work — one request or one message — is one database transaction. The use case \
+owns it: it begins the transaction and commits or rolls back through a unit-of-work \
+abstraction declared in an inner layer and implemented in `infrastructure`. That is the \
+only place where a transaction is begun or ended: repositories and entry-point handlers \
+never commit or roll back. Every path ends in commit or rollback and releases the \
+connection. The commit is finished before the response is returned."""
+statement = """
+The transaction boundary is explicit: one identifiable place per request begins the \
+transaction and commits or rolls back; every path ends in commit or rollback and releases \
+the connection."""
+inputs = ["snapshot"]
+scope = ["src/tracksvc/application/**/*.py", "src/tracksvc/infrastructure/**/*.py", "src/tracksvc/api/**/*.py"]
+
+[judge.anchors]
+0 = """
+No single boundary: repositories commit themselves, or one request commits more than once, \
+or autocommit is relied on, or some path (an error branch, an early return) leaves the \
+transaction open."""
+1 = """
+One transaction per request with commit / rollback on every path, but the owner is not the \
+use case: the commit sits in a FastAPI `yield` dependency or middleware after the handler, \
+or in the handler itself."""
+2 = """
+The use case opens the unit of work (`async with uow:` or equivalent), does its work and \
+commits inside it; the unit of work rolls back on any exception; repositories only read \
+and write. This is what the reference solution does."""
+
+[judge.notes]
+accept = [
+  "A read-for-update method on the storage abstraction (`get_for_update`): it names a guarantee, not a mechanism. An optimistic version with a retry inside the use case is accepted too.",
+  "The unit of work receiving a session from the provider, or creating and closing it itself.",
+  "Read-only use cases that open a unit of work and never commit.",
+]
+do_not_judge = [
+  "Whether concurrent requests are resolved correctly (criteria 4.9, 4.10): a missing row lock is not a boundary defect.",
+  "Session scope and release (criterion 4.J5).",
+]
+penalise = ["Locks or retry loops written in API handlers: level 1 at most."]
+
+[[judge]]
+id = "4.J4"
+title = "Readable migration consistent with the models"
+rule = "AGENTS.md › Persistence and transactions"
+rule_text = """
+The schema changes only through Alembic revisions with explicit, readable operations that \
+stay consistent with the ORM models. The application never creates or alters database \
+objects and never calls `create_all`."""
+statement = """
+The migration is a readable revision with explicit operations, consistent with the ORM \
+models; the schema is never created through `create_all`."""
+inputs = ["snapshot"]
+scope = ["migrations/**/*.py", "alembic/**/*.py", "src/tracksvc/infrastructure/**/*.py", "src/tracksvc/api/**/*.py"]
+
+[judge.anchors]
+0 = """
+The schema comes from `metadata.create_all` (in the app or inside the revision), or the \
+revision is one opaque `op.execute` of a SQL dump, or `downgrade` is empty / cannot work \
+(drops the parent before the child)."""
+1 = """
+Explicit `op.create_table` operations and a working `downgrade`, but the revision and the \
+ORM models disagree somewhere (a column type, nullability, a constraint or its name present \
+in one and not in the other), or autogenerated leftovers remain."""
+2 = """
+`upgrade` creates both tables with named constraints, `downgrade` drops them in reverse \
+order, and columns and constraints match the ORM models one to one. This is what the \
+reference solution does."""
+
+[judge.notes]
+accept = [
+  "A composite primary key (`track_id`, `label`) instead of a separate unique constraint.",
+  "Extra columns, indexes or check constraints, when present in both the revision and the models.",
+  "The revision edited by hand after autogeneration.",
+]
+do_not_judge = [
+  "Whether the commands exit 0 (criteria 4.1, 4.2).",
+]
+level0_examples = ["Step-4 negative 04: downgrade drops the referenced table first."]
+
+[[judge]]
+id = "4.J5"
+title = "Request-scoped session from one provider"
+rule = "AGENTS.md › Resources and lifecycle"
+rule_text = """
+One database session / unit of work per request or message. It is provided by a single \
+provider in the composition root; nothing else creates engines or sessions. API code does \
+not use session APIs beyond this wiring. The session is released on every path, including \
+errors."""
+statement = """
+A database session (or unit of work) has request scope: handlers do not construct engines \
+or sessions themselves, and the session is released on every path, including errors."""
+inputs = ["snapshot"]
+scope = ["src/tracksvc/api/**/*.py", "src/tracksvc/infrastructure/**/*.py", "src/tracksvc/application/**/*.py"]
+
+[judge.anchors]
+0 = """
+A session shared between requests (kept in `app.state`, a module global, a singleton \
+repository holding one session), or handlers create engines / sessions themselves, or a \
+session is not closed on an error path."""
+1 = """
+One session per request, always closed, but the wiring is not single: sessions are created \
+in more than one place (a dependency and also a repository / use case), or handlers call \
+session APIs (`session.execute`, `session.commit`) directly."""
+2 = """
+One provider in the composition root (a dependency or factory) yields the session or unit \
+of work for the request and closes it in `finally` / `async with`; handlers only receive \
+use cases. This is what the reference solution does."""
+
+[judge.notes]
+accept = [
+  "`/ready` using a short-lived engine connection without a session: the stated exception.",
+  "The provider yielding a unit of work that owns the session.",
+]
+do_not_judge = [
+  "Who commits (criterion 4.J3).",
+  "Engine lifecycle (criterion 1.J1).",
+]

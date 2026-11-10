@@ -1,0 +1,199 @@
+# Rubric — step 3 (L2-02): segments, invariants I1–I7, sealing.
+# Common part and scoring rules: bench/tests/rubric/common.toml.
+schema = "dev-agent-bench/rubric/1"
+step = 3
+name = "L2-02"
+
+[required]
+criteria = ["3.1"]   # a segment can be added to a track
+common = ["C3"]
+
+[[group]]
+id = "G-operations"
+title = "Add / remove / seal: the accepted paths"
+weight = 30
+[group.criteria]
+"3.1" = 2.0
+"3.2" = 1.0
+"3.3" = 1.0
+"3.10" = 2.0
+"3.12" = 2.0
+
+[[group]]
+id = "G-invariants"
+title = "Rejections and atomicity"
+weight = 30
+[group.criteria]
+"3.4" = 1.0
+"3.5" = 1.0
+"3.6" = 1.0
+"3.7" = 2.0   # four kinds of overlap
+"3.8" = 0.5   # I5
+"3.9" = 2.0   # nothing changes after a rejection
+"3.13" = 1.0
+"3.14" = 1.0
+
+[[group]]
+id = "G-errors"
+title = "Not found and validation on the new routes"
+weight = 15
+[group.criteria]
+"3.11" = 1.0
+"3.15" = 1.0
+"3.16" = 1.0
+
+# ------------------------------------------------------------------------ judge
+
+[[judge]]
+id = "3.J1"
+title = "Invariants in the domain, once"
+rule = "AGENTS.md › Domain"
+rule_text = """
+Business invariants are enforced in the domain layer, each in exactly one place. Routes, \
+schemas and use cases do not re-check or duplicate them. Request-shape validation of \
+individual fields (types, ranges, formats) belongs to the API schemas and is not an \
+invariant. Rules that depend on stored state or on relations between values are domain \
+invariants."""
+statement = """
+Each invariant I1–I7 is enforced in the domain layer, in one place; not in routers, schemas \
+or use cases."""
+inputs = ["snapshot", "task"]
+scope = ["src/tracksvc/domain/**/*.py", "src/tracksvc/application/**/*.py", "src/tracksvc/api/**/*.py"]
+
+[judge.anchors]
+0 = """
+At least one invariant is enforced only outside the domain: `start < end` or the capacity \
+bound as a schema validator, overlap / label / limit / sealed checks in a use case or a \
+handler, with the domain object accepting anything."""
+1 = """
+All invariants are in the domain, but at least one is checked twice — again in a schema, \
+handler or use case — or one invariant is spread over several domain methods that each \
+repeat the condition."""
+2 = """
+Each of I1–I7 has one home in `domain` (the `Span` value object for `start < end`, the \
+track's own operations for the rest); outer layers call the operation and translate the \
+error. This is what the reference solution does."""
+
+[judge.notes]
+accept = [
+  "Constructing `Span(...)` inside a use case: the check lives in the value object, the use case does not contain it.",
+  "Field-shape validation in schemas (integer type, `>= 0`, label regex): not an invariant.",
+  "Uniqueness of `code` through the storage (exception or pre-check in the use case), as at step 2.",
+  "A database unique constraint (from step 4) is not a duplicate of the invariant.",
+]
+do_not_judge = [
+  "Whether the checks are correct (criteria 3.4–3.8, 3.13, 3.14).",
+  "The order of check and mutation (criterion 3.J3).",
+]
+
+[[judge]]
+id = "3.J2"
+title = "Immutable value object, closed aggregate"
+rule = "AGENTS.md › Domain"
+rule_text = """
+Value objects are immutable and compared by value. An entity never exposes its internal \
+collections in mutable form. Its state changes only through its own operations."""
+statement = """
+Span is immutable and compared by value; a track's segments can be changed only through the \
+track's own operations (no externally mutable collection is exposed)."""
+inputs = ["snapshot"]
+scope = ["src/tracksvc/domain/**/*.py", "src/tracksvc/application/**/*.py", "src/tracksvc/infrastructure/**/*.py"]
+
+[judge.anchors]
+0 = """
+`Span` is a mutable class or is compared by identity; or the track hands out its internal \
+`list` / `dict` of segments (public attribute or a getter returning the same object) and \
+code outside the track appends to or removes from it."""
+1 = """
+`Span` is immutable with value equality, and outside code does not mutate segments, but the \
+track still returns its internal mutable collection (nothing prevents the mutation), or \
+`Segment` — holding the span and label — is itself mutable."""
+2 = """
+`Span` is frozen with value equality (frozen dataclass, frozen pydantic model, NamedTuple); \
+the track exposes segments as a tuple / copy / read-only view and changes them only in its \
+own add / remove operations. This is what the reference solution does."""
+
+[judge.notes]
+accept = [
+  "A track that is itself mutable and changed by reference without an explicit `save` at step 3: not penalised (the price is the rework at step 4).",
+  "The in-memory storage keeping deep copies, or not.",
+]
+do_not_judge = [
+  "Whether the invariants are in the right place (criterion 3.J1).",
+]
+
+[[judge]]
+id = "3.J3"
+title = "Check first, then change"
+rule = "AGENTS.md › Domain"
+rule_text = """
+An operation checks every invariant first and changes state only afterwards. Never mutate \
+and then validate or roll back."""
+statement = "Invariants are checked before any state change (no mutate-then-validate)."
+inputs = ["snapshot"]
+scope = ["src/tracksvc/domain/**/*.py", "src/tracksvc/application/**/*.py", "src/tracksvc/infrastructure/**/*.py"]
+
+[judge.anchors]
+0 = """
+Some operation changes state and validates afterwards: appends the segment and then checks \
+overlap / limit, sets `sealed` and then checks emptiness, restores the old state in an \
+`except` block, or the storage is written before the conflict check."""
+1 = """
+Domain operations check first, but an outer layer relies on undo: a use case saves and \
+then removes on error, or works on the stored object and depends on a copy made elsewhere \
+to hide a partial change."""
+2 = """
+Every operation of the track runs all its checks on the current state and only then \
+assigns; a rejected request leaves no trace by construction, not by rollback. This is what \
+the reference solution does."""
+
+[judge.notes]
+accept = [
+  "Building the new collection aside and assigning it once after the checks.",
+  "Returning a new track object instead of mutating.",
+]
+do_not_judge = [
+  "Whether a rejection really leaves the state unchanged at run time (criterion 3.9).",
+]
+level0_examples = [
+  "Negative reference: mutation before the invariant check.",
+  "Step-2 negative, first version of 04: the rejected track is stored under its own id before the conflict check — invisible to the API, visible in the code.",
+]
+
+[[judge]]
+id = "3.J4"
+title = "Domain errors without HTTP, one mapping"
+rule = "AGENTS.md › Domain; API"
+rule_text = """
+Domain errors carry no HTTP status codes and know nothing about transport or storage. \
+Domain and application errors are translated to HTTP status and error body in one place in \
+the API layer (the central error mapping), not in individual handlers."""
+statement = """
+Domain errors are expressed without HTTP concepts; their translation to HTTP status and \
+body is localized in the API layer."""
+inputs = ["snapshot"]
+scope = ["src/tracksvc/domain/**/*.py", "src/tracksvc/application/**/*.py", "src/tracksvc/api/**/*.py"]
+
+[judge.anchors]
+0 = """
+Domain or application errors carry a status code or an HTTP-shaped payload, or raise \
+`HTTPException`; or there is no central mapping — each handler catches errors and builds its \
+own response."""
+1 = """
+Errors are HTTP-free and a central mapping exists, but some handlers still translate by \
+hand (`try/except` → `JSONResponse` for one or two errors), or the error-code string of the \
+HTTP body is chosen in two places."""
+2 = """
+Errors are plain exception classes in `domain` / `application`; one module in `api` maps \
+error class → status and body (exception handlers or a table), and handlers contain no \
+`try/except` for domain errors. This is what the reference solution does."""
+
+[judge.notes]
+accept = [
+  "`SegmentNotFoundError` declared in `domain` or in `application`: both layers are fine.",
+  "A machine-readable `code` attribute on the error (for example `segment_overlap`): it is a business identifier, not an HTTP concept.",
+  "A separate handler for request-validation errors (422) next to the domain mapping.",
+]
+do_not_judge = [
+  "The exact statuses and codes returned (criteria 3.4–3.16).",
+]

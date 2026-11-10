@@ -1,0 +1,63 @@
+"""Shared fixtures.
+
+The tests own the database ``DATABASE_URL`` points to: it must be reachable, and every
+test that changes it restores what it changed.
+"""
+
+import asyncio
+import os
+import socket
+from collections.abc import Callable, Iterator, Sequence
+from typing import Any
+
+import pytest
+from fastapi.testclient import TestClient
+from sqlalchemy import Row, text
+from sqlalchemy.ext.asyncio import create_async_engine
+from sqlalchemy.pool import NullPool
+
+from tracksvc.api.app import create_app
+
+type RunSql = Callable[[str], Sequence[Row[Any]]]
+
+
+@pytest.fixture
+def client() -> Iterator[TestClient]:
+    """Client of a freshly started application that is shut down after the test."""
+    with TestClient(create_app()) as test_client:
+        yield test_client
+
+
+@pytest.fixture
+def run_sql() -> RunSql:
+    """Function that runs one SQL statement on the test database and returns its rows."""
+
+    async def execute(statement: str) -> Sequence[Row[Any]]:
+        engine = create_async_engine(os.environ["DATABASE_URL"], poolclass=NullPool)
+        try:
+            async with engine.begin() as connection:
+                result = await connection.execute(text(statement))
+                return result.all() if result.returns_rows else []
+        finally:
+            await engine.dispose()
+
+    return lambda statement: asyncio.run(execute(statement))
+
+
+@pytest.fixture
+def closed_port() -> int:
+    """Local TCP port nothing listens on."""
+    with socket.socket() as probe:
+        probe.bind(("127.0.0.1", 0))
+        port: int = probe.getsockname()[1]
+    return port
+
+
+@pytest.fixture
+def silent_port() -> Iterator[int]:
+    """Local TCP port that accepts connections and never answers."""
+    with socket.socket() as listener:
+        listener.bind(("127.0.0.1", 0))
+        listener.listen()
+        port: int = listener.getsockname()[1]
+        yield port

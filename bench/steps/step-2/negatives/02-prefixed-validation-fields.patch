@@ -1,0 +1,11 @@
+--- a/src/tracksvc/api/errors.py
++++ b/src/tracksvc/api/errors.py
+@@ -26,7 +26,6 @@ def _field_violation(location: tuple[int | str, ...], message: str) -> FieldViol
+     # The location starts with the part of the request ("body", "path"). What follows is
+     # the path inside that part; it is empty when the body as a whole is rejected.
+-    source, *path = location
+-    return FieldViolation(field=".".join(map(str, path)) or str(source), message=message)
++    return FieldViolation(field=".".join(map(str, location)), message=message)
+ 
+ 
+ def _status_and_detail(error: Exception) -> tuple[int, ErrorDetail]:

@@ -1,0 +1,21 @@
+--- a/src/tracksvc/infrastructure/repositories.py
++++ b/src/tracksvc/infrastructure/repositories.py
+@@ -3,7 +3,6 @@
+ from uuid import UUID
+ 
+ from sqlalchemy import Select, delete, insert, select, update
+-from sqlalchemy.dialects.postgresql import insert as postgresql_insert
+ from sqlalchemy.ext.asyncio import AsyncSession
+ 
+ from tracksvc.domain.errors import TrackCodeTakenError
+@@ -33,9 +33,8 @@ class SqlAlchemyTrackRepository:
+                 stored then.
+         """
+         inserted_id = await self._session.scalar(
+-            postgresql_insert(TrackRow)
++            insert(TrackRow)
+             .values(to_track_values(track))
+-            .on_conflict_do_nothing(index_elements=[TrackRow.code])
+             .returning(TrackRow.id)
+         )
+         if inserted_id is None:

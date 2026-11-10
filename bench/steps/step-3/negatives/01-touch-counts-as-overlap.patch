@@ -1,0 +1,8 @@
+--- a/src/tracksvc/domain/span.py
++++ b/src/tracksvc/domain/span.py
+@@ -22,4 +22,4 @@ class Span:
+ 
+     def overlaps(self, other: "Span") -> bool:
+         """Tell whether the two spans share a unit; spans that only touch do not."""
+-        return self.start < other.end and other.start < self.end
++        return self.start <= other.end and other.start <= self.end

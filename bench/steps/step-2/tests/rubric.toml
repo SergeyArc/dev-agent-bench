@@ -1,0 +1,148 @@
+# Rubric — step 2 (L2-01): create and read a track, one error body.
+# Common part and scoring rules: bench/tests/rubric/common.toml.
+schema = "dev-agent-bench/rubric/1"
+step = 2
+name = "L2-01"
+
+[required]
+criteria = ["2.1", "2.3"]   # a track can be created and read back
+common = ["C3"]
+
+[[group]]
+id = "G-core"
+title = "Create / get / conflict"
+weight = 45
+[group.criteria]
+"2.1" = 2.0
+"2.2" = 1.0
+"2.3" = 2.0
+"2.4" = 1.0
+"2.8" = 2.0
+
+[[group]]
+id = "G-validation"
+title = "Validation and the error body"
+weight = 30
+[group.criteria]
+"2.5" = 1.0
+"2.6" = 2.0   # 31 requests, every field and every kind of violation
+"2.7" = 1.0
+"2.9" = 1.0
+
+# ------------------------------------------------------------------------ judge
+
+[[judge]]
+id = "2.J1"
+title = "Logic in use cases, thin API"
+rule = "AGENTS.md › Application; API"
+rule_text = """
+Business logic lives in use cases in the application layer. A use case receives its \
+dependencies explicitly from outside; it neither constructs them nor reaches for global \
+objects. The API layer only translates HTTP to use case calls and back; it holds no \
+business logic."""
+statement = """
+The create/get logic lives in the application layer; the API layer only translates between \
+HTTP and application calls and holds no business logic; use cases get their dependencies \
+passed in explicitly (not created inside, not global)."""
+inputs = ["snapshot"]
+scope = ["src/tracksvc/api/**/*.py", "src/tracksvc/application/**/*.py", "src/tracksvc/domain/**/*.py"]
+
+[judge.anchors]
+0 = """
+A route handler does the work itself: builds the track, checks `code` uniqueness, talks to \
+the storage directly; or there are no use cases at all; or a use case constructs its own \
+storage / imports a module-level storage instance."""
+1 = """
+Use cases exist and receive the storage from outside, but a piece of the logic stays in the \
+API: the uniqueness check or id generation in the handler or in a schema validator, or the \
+handler decides "not found" from a `None` it got back."""
+2 = """
+Handlers parse the request, call one use case and serialise the result; use cases take the \
+storage abstraction as a constructor / call argument supplied by the composition root. This \
+is what the reference solution does."""
+
+[judge.notes]
+accept = [
+  "Uniqueness of `code` by an exception raised from the storage, or by a pre-check in the use case through the storage abstraction: both count as application-level logic. Only a check in a route or schema is a lapse.",
+  "Field-shape validation (types, ranges, regex) in API schemas: it is not business logic.",
+  "Use cases as classes or as plain functions.",
+  "The in-memory storage instance kept in `app.state` / the composition root.",
+]
+do_not_judge = [
+  "Import-direction violations (criterion C3).",
+  "Where errors are mapped to HTTP (criterion 3.J4 from step 3).",
+]
+
+[[judge]]
+id = "2.J2"
+title = "Storage abstraction in an inner layer"
+rule = "AGENTS.md › Application"
+rule_text = """
+A use case depends on storage through an abstraction declared in an inner layer (`domain` \
+or `application`) and implemented in `infrastructure`. Replacing the implementation must \
+require no change in the use case."""
+statement = """
+Use cases depend on a storage abstraction declared in an inner layer (domain or \
+application); replacing the implementation needs no change in the use cases."""
+inputs = ["snapshot"]
+scope = ["src/tracksvc/application/**/*.py", "src/tracksvc/domain/**/*.py", "src/tracksvc/infrastructure/**/*.py", "src/tracksvc/api/**/*.py"]
+
+[judge.anchors]
+0 = """
+No abstraction: use cases are typed against the concrete in-memory class, or the storage is \
+a dict / module global used directly; or the "abstraction" is declared in `infrastructure` \
+or `api`."""
+1 = """
+An abstraction is declared in `domain` or `application`, but it leaks the implementation: \
+methods or types that only make sense for the in-memory version (returns the internal dict, \
+exposes a lock), or use cases call something outside the abstraction."""
+2 = """
+A `Protocol` / ABC in `domain` or `application` with only the operations the use cases \
+need; the in-memory class in `infrastructure` implements it; use cases mention only the \
+abstraction. This is what the reference solution does."""
+
+[judge.notes]
+accept = [
+  "Protocol or ABC; the name (`Repository`, `Store`, `Port`) does not matter.",
+  "A stub `segments` on the track, or `segments` only in the response schema: not penalised at step 2.",
+]
+do_not_judge = [
+  "Import-direction violations (criterion C3).",
+  "A unit of work: not required before step 4.",
+]
+
+[[judge]]
+id = "2.J3"
+title = "Use cases free of HTTP and storage details"
+rule = "AGENTS.md › Application"
+rule_text = """
+The application layer contains no HTTP concepts (status codes, request or response objects) \
+and no storage details (SQL, sessions, table names)."""
+statement = """
+Use cases contain no HTTP concepts (status codes, request/response objects) and no \
+storage-specific details (SQL, sessions, table names)."""
+inputs = ["snapshot"]
+scope = ["src/tracksvc/application/**/*.py"]
+
+[judge.anchors]
+0 = """
+A use case raises or returns something HTTP-shaped (a status code, an `HTTPException`-like \
+error carrying a status, a response / request schema of the API) or works with storage \
+internals (the dict of the in-memory store, keys, locks)."""
+1 = """
+No HTTP object or status code, but HTTP vocabulary shapes the application API: errors named \
+after statuses (`NotFound404`, `ConflictError` with a `status` field) or use cases that take \
+/ return the API's pydantic request or response models."""
+2 = """
+Use cases take plain values or application-level commands, return domain objects or \
+application DTOs, and raise domain / application errors that say what happened in business \
+terms. This is what the reference solution does."""
+
+[judge.notes]
+accept = [
+  "pydantic models declared in `application` or `domain` (pydantic is on the foundation allowlist).",
+  "Application errors such as `TrackNotFoundError`, `TrackCodeTakenError`.",
+]
+do_not_judge = [
+  "Imports of frameworks in `application` (criterion C3) — judge the concepts, not the import lines.",
+]

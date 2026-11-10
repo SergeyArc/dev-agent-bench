@@ -1,0 +1,45 @@
+{
+  "harbor_version": "0.23.0",
+  "proxy_port": 8301,
+  "upstream": "http://127.0.0.1:8300",
+  "container_host": "host.docker.internal",
+  "default_profile": "P1",
+  "limits": {
+    "token_budget_per_step": 1000000,
+    "max_turns": 300,
+    "agent_timeout_sec": 7200,
+    "agent_setup_timeout_sec": 1800,
+    "max_output_tokens": 32000,
+    "client_timeout_sec": 1800
+  },
+  "harnesses": {
+    "openhands-sdk": {
+      "version": "1.50.1",
+      "python_version": "3.12",
+      "model_prefix": "openai/",
+      "agent_class": "bench_agents:BenchOpenHandsSDK"
+    },
+    "openhands": {
+      "version": "1.6.0",
+      "python_version": "3.13",
+      "model_prefix": "openai/",
+      "agent_class": "bench_agents:BenchOpenHands"
+    },
+    "opencode": {
+      "version": "1.18.34",
+      "provider_id": "vllm",
+      "model_options": {},
+      "config": {
+        "$schema": "https://opencode.ai/config.json",
+        "autoupdate": false,
+        "share": "disabled",
+        "plugin": [],
+        "compaction": {
+          "auto": true
+        }
+      },
+      "agent_class": "bench_agents:BenchOpenCode"
+    }
+  },
+  "image_uv_version": "0.12.22"
+}

@@ -1,0 +1,38 @@
+# pair	variant	turn_limit	trial_dir (under ~/bench-runs)	place — cell membership in the published matrix
+Devstral × opencode	G0	300	batch-20261006-200513-devstral-2-123b/20261006-200513-13966d/bench__Lz8c6RD	cell
+Devstral × opencode	G0	300	batch-20261006-200513-devstral-2-123b/20261006-225016-e5ba28/bench__6XKz9an	cell
+Devstral × opencode	G0	300	batch-20261006-200513-devstral-2-123b/20261007-010220-b61544/bench__sPQ6dST	cell
+Devstral × OpenHands	G0	600	batch-20261009-221545-devstral-2-123b/20261009-221545-b08488/bench__DqouTVx	cell
+Devstral × OpenHands	G0	600	batch-20261009-221545-devstral-2-123b/20261010-013404-28756c/bench__4snwgzT	cell
+Devstral × OpenHands	G0	600	batch-20261009-221545-devstral-2-123b/20261010-031904-a27a7d/bench__sy3v69H	cell
+Gemma × opencode	G0	300	batch-20261004-211847-gemma-4-31b/20261004-211847-5411de/bench__bvTaFQu	cell
+Gemma × opencode	G0	300	batch-20261004-211847-gemma-4-31b/20261004-224013-0427ac/bench__aAm6QsD	cell
+Gemma × opencode	G0	300	batch-20261004-211847-gemma-4-31b/20261004-235247-e8a27d/bench__rFbb8E7	cell
+Gemma × opencode	G2	300	batch-20261008-105431-gemma-4-31b/20261008-105431-0c1879/bench__TmdPxsz	cell
+Gemma × opencode	G2	300	batch-20261008-105431-gemma-4-31b/20261008-134427-f28ce0/bench__Kd87zzJ	cell
+Gemma × opencode	G2	300	batch-20261008-105431-gemma-4-31b/20261008-150429-b13c72/bench__65ME99A	cell
+Gemma × opencode	G2b	300	batch-20261010-075159-gemma-4-31b/20261010-075159-325cf2/bench__mvQswrQ	cell
+Gemma × opencode	G2b	300	batch-20261010-075159-gemma-4-31b/20261010-092119-382dd2/bench__aFg3VVt	cell
+Gemma × opencode	G2b	300	batch-20261010-075159-gemma-4-31b/20261010-111725-3b5c34/bench__T6pzmZK	cell
+Gemma × OpenHands	G0	300	batch-20261005-123411-gemma-4-31b/20261005-123411-cdd6a7/bench__SnYYtCJ	cell
+Gemma × OpenHands	G0	300	batch-20261005-123411-gemma-4-31b/20261005-142926-920af2/bench__XtuYXxb	cell
+Gemma × OpenHands	G0	300	batch-20261005-123411-gemma-4-31b/20261005-153250-83293c/bench__uvxscaC	cell
+Nemotron × opencode	G0	300	batch-20261005-181906-nemotron-3-super-120b-a12b/20261005-181906-78a499/bench__2CDucdB	cell
+Nemotron × opencode	G0	300	batch-20261005-181906-nemotron-3-super-120b-a12b/20261005-201636-1a9a0a/bench__MyGNHER	cell
+Nemotron × opencode	G0	300	batch-20261005-181906-nemotron-3-super-120b-a12b/20261005-221402-c2c48a/bench__vewAfh9	cell
+Nemotron × OpenHands	G0	300	batch-20261006-000805-nemotron-3-super-120b-a12b/20261006-000805-7ca8b3/bench__XnGgSC8	setting row
+Nemotron × OpenHands	G0	300	batch-20261006-000805-nemotron-3-super-120b-a12b/20261006-030258-014e08/bench__dNHxMHH	setting row
+Nemotron × OpenHands	G0	300	batch-20261006-000805-nemotron-3-super-120b-a12b/20261006-052312-a3b85d/bench__YxoqhfE	setting row
+Nemotron × OpenHands	G0	600	batch-20261007-081403-nemotron-3-super-120b-a12b/20261007-081403-334158/bench__rVQJnqB	cell
+Nemotron × OpenHands	G0	600	batch-20261007-081403-nemotron-3-super-120b-a12b/20261007-110143-ec3cd7/bench__DstzxhA	cell
+Nemotron × OpenHands	G0	600	batch-20261007-081403-nemotron-3-super-120b-a12b/20261007-142506-b9e2cb/bench__FE4wxPH	out of stats (infra_failure)
+Nemotron × OpenHands	G0	600	batch-20261007-081403-nemotron-3-super-120b-a12b/20261007-191745-f445dc/bench__8TrMkG4	cell
+Qwen × opencode	G0	300	batch-20261006-084903-qwen3.8-27b/20261006-084903-5c556f/bench__Ev4cais	cell
+Qwen × opencode	G0	300	batch-20261006-084903-qwen3.8-27b/20261006-124829-6d3d51/bench__FkCfoav	cell
+Qwen × opencode	G0	300	batch-20261006-084903-qwen3.8-27b/20261006-153449-1e0609/bench__raxhE6g	cell
+Qwen × opencode	G2	300	batch-20261007-225747-qwen3.8-27b/20261007-225747-84ce94/bench__m4EQdfd	cell
+Qwen × opencode	G2	300	batch-20261007-225747-qwen3.8-27b/20261008-014915-c029a5/bench__AnSecVE	cell
+Qwen × opencode	G2	300	batch-20261007-225747-qwen3.8-27b/20261008-050649-d5b627/bench__PXv5yBy	cell
+Qwen × OpenHands	G0	600	batch-20261008-204155-qwen3.8-27b/20261008-204155-480728/bench__xJAGkQz	cell
+Qwen × OpenHands	G0	600	batch-20261008-204155-qwen3.8-27b/20261009-021654-062ee8/bench__MpJpYbK	cell
+Qwen × OpenHands	G0	600	batch-20261009-153907-qwen3.8-27b/20261009-153907-d1cfe6/bench__rJW9Jwu	cell

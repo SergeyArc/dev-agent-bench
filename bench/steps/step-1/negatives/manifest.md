@@ -1,0 +1,10 @@
+Expected IDs updated to the actual results of the negative gate (final tests, without C4).
+
+| file | mistake (one line) | expected failing criterion IDs (from contract §9) | why |
+|---|---|---|---|
+| `01-import-time-database-url.patch` | `DATABASE_URL` is captured while importing the ASGI module. | `1.13` | Violates §2.1 and the start-up configuration rule. Originally uncaught (no §9 criterion); gate negative gate added 1.13 (import with `DATABASE_URL`/`RABBITMQ_URL` unset). The engine itself is still lifespan-owned, so 1.J1 may pass. |
+| `02-require-rabbitmq-url.patch` | The HTTP lifespan unnecessarily requires `RABBITMQ_URL`. | `1.4`–`1.8`, `1.10`, `1.11`, `1.12` | Starting the HTTP app with `RABBITMQ_URL` unset raises `KeyError`, although HTTP must depend only on `DATABASE_URL`. |
+| `03-catch-only-sqlalchemy-errors.patch` | The readiness probe lets network and timeout `OSError`s escape. | `1.7`, `1.11`, `1.12`, `C6` | A refused connection or an unresponsive listener can become HTTP 500 instead of the centrally mapped 503 response. |
+| `04-no-end-to-end-readiness-deadline.patch` | Only connect and query operations are timed; the complete probe has no deadline. | `1.12` | Cleanup of a dead connection may outlive the individual timeouts, so `/ready` is not guaranteed to answer within 10 seconds. Shows up when the database goes silent after a successful `/ready` (gate negative gate: 62 s); criterion 1.12 added for it. |
+| `05-create-table-on-startup.patch` | The application runs DDL and connects to PostgreSQL during lifespan start-up. | `1.6`, `1.7`, `1.10`, `1.11` | An unreachable database prevents `/health`, and an empty unmigrated database gains `service_bootstrap`, violating both start-without-DB and no-DDL requirements. |
+| `06-null-details-in-readiness-error.patch` | The 503 error contains forbidden `"details": null` inside `error`. | `1.7`, `1.11`, `1.12` | §5 permits `details` only for validation errors; after gate negative gate criteria 1.7/1.11/1.12 require `error` to have exactly the keys `code` and `message`. |

@@ -1,0 +1,11 @@
+--- a/src/tracksvc/infrastructure/repositories.py
++++ b/src/tracksvc/infrastructure/repositories.py
+@@ -53,7 +53,7 @@ class SqlAlchemyTrackRepository:
+         transaction asking for the same track waits and then reads what this one
+         committed. Returns ``None`` if there is no such track.
+         """
+-        return await self._find(select(TrackRow).where(TrackRow.id == track_id).with_for_update())
++        return await self._find(select(TrackRow).where(TrackRow.id == track_id))
+ 
+     async def save(self, track: Track) -> None:
+         """Store the current state of a track obtained with ``get_for_update``."""

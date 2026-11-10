@@ -1,0 +1,10 @@
+--- a/src/tracksvc/api/errors.py
++++ b/src/tracksvc/api/errors.py
+@@ -43,6 +43,6 @@ async def _error_response(_request: Request, error: Exception) -> JSONResponse:
+     status_code, detail = _status_and_detail(error)
+     body = ErrorResponse(error=detail)
+-    return JSONResponse(status_code=status_code, content=body.model_dump(exclude_none=True))
++    return JSONResponse(status_code=status_code, content=body.model_dump())
+ 
+ 
+ def register_error_handlers(app: FastAPI) -> None:

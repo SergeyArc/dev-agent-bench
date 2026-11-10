@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+# pre-commit: a commit is accepted only when `make check` passes.
+# Do not modify this file.
+set -u
+
+LOG_DIR="${APP_HOOKS_LOG_DIR:-/var/log/app-hooks}"
+root="$(git rev-parse --show-toplevel)" || exit 1
+tree="$(git write-tree 2>/dev/null || true)"
+# The checks must not inherit the git environment of the commit in progress.
+unset $(git rev-parse --local-env-vars)
+cd "$root" || exit 1
+
+started="$(date +%s)"
+output="$(mktemp)"
+make check 2>&1 | tee "$output"
+status="${PIPESTATUS[0]}"
+failed="$(sed -n 's/^make: \*\*\* \[\([^]]*: \)\{0,1\}\([A-Za-z_-]*\)\] Error.*/\2/p' "$output" | head -n 1)"
+
+# One line per run; a problem with the log never changes the result of the hook.
+{
+  n="$(($(ls "$LOG_DIR" 2>/dev/null | grep -c '^output-') + 1))"
+  tail -n 200 "$output" > "$LOG_DIR/output-$n.log"
+  printf '{"n": %d, "at": "%s", "tree": "%s", "exit": %d, "failed": "%s", "seconds": %d}\n' \
+    "$n" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$tree" "$status" "$failed" "$(($(date +%s) - started))" \
+    >> "$LOG_DIR/pre-commit.jsonl"
+} 2>/dev/null || true
+rm -f "$output"
+
+if ((status != 0)); then
+  echo "pre-commit: \`make check\` failed, the commit is rejected. Fix the findings and commit again." >&2
+fi
+exit "$status"

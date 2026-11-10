@@ -1,0 +1,16 @@
+--- a/src/tracksvc/infrastructure/repositories.py
++++ b/src/tracksvc/infrastructure/repositories.py
+@@ -60,7 +60,12 @@ class SqlAlchemyTrackRepository:
+         await self._session.execute(
+             update(TrackRow).where(TrackRow.id == track.id).values(to_track_values(track))
+         )
+-        await self._session.execute(delete(SegmentRow).where(SegmentRow.track_id == track.id))
++        await self._session.execute(
++            delete(SegmentRow).where(
++                SegmentRow.track_id == track.id,
++                SegmentRow.label.in_([segment.label for segment in track.segments]),
++            )
++        )
+         await self._insert_segments(track)
+ 
+     async def _find(self, statement: Select[TrackRow]) -> Track | None:

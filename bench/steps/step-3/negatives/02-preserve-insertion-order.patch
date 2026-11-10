@@ -1,0 +1,11 @@
+--- a/src/tracksvc/domain/track.py
++++ b/src/tracksvc/domain/track.py
+@@ -76,7 +76,7 @@ class Track:
+     @property
+     def segments(self) -> tuple[Segment, ...]:
+         """The reserved segments, ordered by the start of their spans."""
+-        return tuple(sorted(self._segments, key=lambda segment: segment.span.start))
++        return tuple(self._segments)
+ 
+     def add_segment(self, label: str, span: Span) -> None:
+         """Reserve ``span`` under ``label``.

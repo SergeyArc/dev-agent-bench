@@ -1,0 +1,11 @@
+--- a/src/tracksvc/infrastructure/database.py
++++ b/src/tracksvc/infrastructure/database.py
+@@ -27,7 +27,7 @@
+     raised.
+     """
+     try:
+-        async with asyncio.timeout(READINESS_TIMEOUT_SECONDS), engine.connect() as connection:
++        async with engine.connect() as connection:
+             await asyncio.wait_for(
+                 connection.execute(text("SELECT 1")), READINESS_QUERY_TIMEOUT_SECONDS
+             )

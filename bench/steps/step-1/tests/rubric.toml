@@ -1,0 +1,123 @@
+# Rubric — step 1 (L1-01): skeleton, health/readiness, Alembic baseline.
+# Common part and scoring rules: bench/tests/rubric/common.toml.
+schema = "dev-agent-bench/rubric/1"
+step = 1
+name = "L1-01"
+
+# A criterion listed here that is not `pass` zeroes the step.
+[required]
+criteria = ["1.1", "1.4", "1.9"]   # migrations run; the app starts; the layer packages exist
+common = ["C3"]                    # the layers
+
+[[group]]
+id = "G-migrations"
+title = "Alembic baseline"
+weight = 15
+[group.criteria]
+"1.1" = 2.0
+"1.2" = 1.0
+"1.3" = 1.0
+
+[[group]]
+id = "G-startup"
+title = "The service starts and answers"
+weight = 30
+[group.criteria]
+"1.4" = 2.0
+"1.5" = 2.0
+"1.9" = 1.0
+"1.10" = 1.0
+"1.13" = 1.0
+
+[[group]]
+id = "G-degradation"
+title = "Behaviour when PostgreSQL / RabbitMQ are not there"
+weight = 30
+[group.criteria]
+"1.6" = 1.0
+"1.7" = 1.0
+"1.8" = 1.0
+"1.11" = 1.0
+"1.12" = 1.0
+
+# ------------------------------------------------------------------------ judge
+
+[[judge]]
+id = "1.J1"
+title = "Engine lifecycle"
+rule = "AGENTS.md › Resources and lifecycle"
+rule_text = """
+No I/O at import time. Importing any module opens no connection. The database engine (and \
+its pool) is created at most once per process by its lifespan owner and disposed at \
+shutdown. There are no module-level engine, connection or session objects."""
+statement = """
+Database connections / the engine are created once per process and released at shutdown; \
+there are no module-level connection or session objects."""
+inputs = ["snapshot"]
+scope = ["src/tracksvc/**/*.py"]
+
+[judge.anchors]
+0 = """
+An engine, connection, session or session factory is created at module level (import time), \
+or a new engine is created per request / per `/ready` call, or the engine is never disposed."""
+1 = """
+The engine is created once in the lifespan and there is no module-level object, but one \
+lapse remains: `dispose()` is skipped on some shutdown path, or the engine is reachable \
+through a module-level mutable holder (a global set inside the lifespan, an `lru_cache`d \
+factory) instead of being owned by the lifespan / `app.state`."""
+2 = """
+Exactly one owner: the application lifespan creates the engine, keeps it in application \
+state (or passes it explicitly) and disposes it on shutdown; importing any module creates \
+nothing. This is what the reference solution does."""
+
+[judge.notes]
+accept = [
+  "Reading `DATABASE_URL` in the lifespan and building the engine lazily there.",
+  "A probe that takes a short-lived connection from the engine and closes it itself.",
+]
+do_not_judge = [
+  "Reading configuration at import time (criterion 1.13).",
+  "Timeouts of the readiness probe (criteria 1.7, 1.11, 1.12).",
+  "Alembic's own engine in migrations/env.py: a separate entry point.",
+]
+
+[[judge]]
+id = "1.J3"
+title = "Nothing beyond the skeleton"
+rule = "AGENTS.md › Scope of a change"
+rule_text = """
+Implement what the task asks for and nothing more: no entities, business logic, endpoints \
+or abstractions beyond it. The conventions below apply to the code a task requires: a rule \
+starts to apply when a task introduces such code. Do not build abstractions ahead for later \
+tasks."""
+statement = """
+The step adds no business logic, entities or abstractions beyond the skeleton (no \
+unnecessary abstractions)."""
+inputs = ["snapshot", "task"]
+scope = ["src/tracksvc/**/*.py", "migrations/**/*.py", "alembic/**/*.py"]
+
+[judge.anchors]
+0 = """
+Code for later tasks is present: an entity or table, a business endpoint, a repository / \
+storage interface, a unit of work, a request-session provider, a use-case base class, a \
+message consumer — or the baseline migration creates schema objects."""
+1 = """
+No business code, but a speculative technical layer the task does not use: an empty \
+abstraction with no caller, a generic base class or settings framework for options the task \
+does not have, an exception hierarchy beyond the one error the task defines."""
+2 = """
+Only what the task lists: the four packages, the ASGI app with `/health` and `/ready`, the \
+readiness probe in `infrastructure`, the central error mapping for the one error, the \
+engine wiring, the Alembic environment with an empty baseline revision, tests."""
+
+[judge.notes]
+accept = [
+  "A small `config` module that reads `DATABASE_URL` (the reference has one).",
+  "Empty `__init__.py` files and empty `domain` / `application` packages.",
+  "Response schemas for `/health`, `/ready` and the error body.",
+]
+do_not_judge = [
+  "Import-direction violations (criterion C3).",
+  "Code quality of what the task does require.",
+]
+anchor_decided = "A unit of work or a storage abstraction prepared at step 1 is unnecessary: AGENTS.md forbids building them ahead (rubric anchors, 1.J3)."

@@ -1,0 +1,10 @@
+--- a/src/tracksvc/api/schemas.py
++++ b/src/tracksvc/api/schemas.py
+@@ -19,6 +19,6 @@ class CreateTrackRequest(BaseModel):
+     """Body of the request that creates a track; JSON types are exact, nothing is coerced."""
+ 
+-    model_config = ConfigDict(strict=True)
++    model_config = ConfigDict(strict=False)
+ 
+     code: str = Field(pattern=r"^[A-Z][A-Z0-9-]{2,31}$")
+     capacity: int = Field(ge=1, le=10000)

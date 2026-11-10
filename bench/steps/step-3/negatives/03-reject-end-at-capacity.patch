@@ -1,0 +1,11 @@
+--- a/src/tracksvc/domain/track.py
++++ b/src/tracksvc/domain/track.py
+@@ -89,7 +89,7 @@ class Track:
+             SegmentLimitReachedError: If the track already has ``MAX_SEGMENTS`` segments.
+         """
+         self._ensure_open()
+-        if span.end > self._capacity:
++        if span.end >= self._capacity:
+             raise SpanOutOfBoundsError(span.end, self._capacity)
+         for segment in self._segments:
+             if segment.label == label:

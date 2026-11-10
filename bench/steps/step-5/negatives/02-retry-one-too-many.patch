@@ -1,0 +1,10 @@
+--- a/src/tracksvc/worker/handler.py
++++ b/src/tracksvc/worker/handler.py
+@@ -90,6 +90,6 @@ class MessageHandler:
+         return self._failed(failure, retry_count or 0)
+ 
+     def _failed(self, failure: str, retry_count: int) -> Outcome:
+-        if retry_count < self._max_retries:
++        if retry_count <= self._max_retries:
+             return Retry(retry_count + 1)
+         return DeadLetter(failure, retry_count)

@@ -1,0 +1,108 @@
+#!/usr/bin/env bash
+# Infrastructure snapshot commit of /app after a bench step.
+# Runs as root from a Harbor [[steps.verifier.collect]] hook, i.e. after the
+# agent phase and before artifact collection and verification.
+#   bench-snapshot <step-label>
+# - stops every process of the `agent` user, so the working copy is quiescent;
+# - commits the working copy on top of whatever the agent committed, with an
+#   anonymous author and message (no model or harness names);
+# - git runs as `agent` with hooks disabled: repository config and hooks are
+#   agent-controlled and must never execute as root; the helpers git would run
+#   from that config (fsmonitor, untracked cache) are switched off as well;
+# - exports a bundle and metadata to /logs/artifacts (collected to the host);
+# - if the bundle cannot be made (the agent broke `.git`, e.g. by rewriting every
+#   file under /app), falls back to an archive of the working copy without `.venv`
+#   and `.git`, so the code of the step is never lost. Status in the metadata:
+#   `ok` (bundle), `fallback` (archive only), `error` (neither).
+set -uo pipefail
+
+STEP="${1:?usage: bench-snapshot <step-label>}"
+APP=/app
+OUT=/logs/artifacts
+AGENT_USER=agent
+META="$OUT/snapshot-$STEP.json"
+BUNDLE="$OUT/snapshot-$STEP.bundle"
+ARCHIVE="$OUT/snapshot-$STEP.tar.gz"
+
+mkdir -p "$OUT"
+
+pkill -KILL -u "$AGENT_USER" >/dev/null 2>&1 || true
+sleep 0.5
+
+as_agent() { runuser -u "$AGENT_USER" -- env -i HOME="/home/$AGENT_USER" PATH=/usr/local/bin:/usr/bin:/bin "$@"; }
+g() {
+  as_agent git -C "$APP" -c core.hooksPath=/dev/null -c commit.gpgsign=false \
+    -c core.fsmonitor=false -c core.untrackedCache=false \
+    -c user.name=bench -c user.email=bench@localhost "$@"
+}
+
+status=ok
+error=""
+head_before="$(g rev-parse --verify -q HEAD 2>/dev/null || true)"
+
+if ! g rev-parse --git-dir >/dev/null 2>&1; then
+  status=error
+  error="/app is not a git repository"
+else
+  g add -A >/dev/null 2>&1 || { status=error; error="git add failed"; }
+  if [[ "$status" == ok ]]; then
+    g commit -q --no-verify --allow-empty -m "bench: snapshot $STEP" >/dev/null 2>&1 \
+      || { status=error; error="git commit failed"; }
+  fi
+fi
+
+head_after="$(g rev-parse --verify -q HEAD 2>/dev/null || true)"
+tree="$(g rev-parse --verify -q 'HEAD^{tree}' 2>/dev/null || true)"
+if [[ "$status" == ok ]]; then
+  g bundle create "$BUNDLE" HEAD >/dev/null 2>&1 \
+    || { status=error; error="git bundle failed"; }
+fi
+archive=""
+if [[ "$status" != ok ]]; then
+  # git could not give a snapshot: keep the files themselves. tar runs as the
+  # agent user (it reads agent-written content) and does not follow symlinks.
+  rm -f "$BUNDLE" "$BUNDLE.lock"
+  if as_agent tar -C "$APP" --exclude=./.venv --exclude=./.git --exclude='__pycache__' \
+       --exclude=./.pytest_cache --exclude=./.mypy_cache --exclude=./.ruff_cache \
+       -czf - . > "$ARCHIVE" 2>/dev/null && [[ -s "$ARCHIVE" ]]; then
+    status=fallback
+    archive="$(basename "$ARCHIVE")"
+  else
+    rm -f "$ARCHIVE"
+  fi
+fi
+# Files present in the working copy but hidden from the commit by .gitignore.
+ignored="$(g status --porcelain --ignored 2>/dev/null | sed -n 's/^!! //p' \
+  | grep -v -E '^(\.venv/|\.pytest_cache/|\.mypy_cache/|\.ruff_cache/|.*__pycache__/)' || true)"
+
+bundle=""
+[[ -s "$BUNDLE" ]] && bundle="$(basename "$BUNDLE")"
+STEP="$STEP" STATUS="$status" ERROR="$error" HEAD_BEFORE="$head_before" BUNDLE="$bundle" ARCHIVE="$archive" \
+HEAD_AFTER="$head_after" TREE="$tree" IGNORED="$ignored" python3 - "$META" <<'PY'
+import json
+import os
+import sys
+
+e = os.environ
+json.dump(
+    {
+        "step": e["STEP"],
+        "status": e["STATUS"],
+        "error": e["ERROR"],
+        "head_before": e["HEAD_BEFORE"],
+        "commit": e["HEAD_AFTER"],
+        "tree": e["TREE"],
+        "bundle": e["BUNDLE"] or None,
+        "archive": e["ARCHIVE"] or None,
+        "ignored_outside_caches": [x for x in e["IGNORED"].split("\n") if x],
+    },
+    open(sys.argv[1], "w"),
+    indent=2,
+)
+PY
+# Copy for the verifier (root-only state survives across steps in the container).
+install -d -m 0700 /var/lib/bench-verifier/snapshots
+cp "$META" "/var/lib/bench-verifier/snapshots/$STEP.json" 2>/dev/null || true
+echo "bench-snapshot: $STEP status=$status commit=$head_after"
+# `fallback` is a kept snapshot: only a step without any snapshot fails the hook.
+[[ "$status" == ok || "$status" == fallback ]]

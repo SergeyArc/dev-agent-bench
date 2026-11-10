@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# Exit 0 iff PostgreSQL (role + database), RabbitMQ and toxiproxy are ready.
+set -euo pipefail
+listening() { (exec 3<>"/dev/tcp/127.0.0.1/$1") 2>/dev/null; }
+PGPASSWORD=tracksvc psql -h 127.0.0.1 -p 5432 -U tracksvc -d tracksvc -qtAX -c 'SELECT 1' >/dev/null
+listening 5672
+listening 8474
+curl -fsS http://127.0.0.1:8474/proxies/rabbitmq >/dev/null
+listening 5673

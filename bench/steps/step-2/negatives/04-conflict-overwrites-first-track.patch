@@ -1,0 +1,15 @@
+--- a/src/tracksvc/infrastructure/memory.py
++++ b/src/tracksvc/infrastructure/memory.py
+@@ -20,8 +20,10 @@
+             TrackCodeTakenError: If a stored track already has the same code; nothing is
+                 stored then.
+         """
+-        if track.code in self._codes:
+-            raise TrackCodeTakenError(track.code)
++        for stored_id, stored in self._tracks_by_id.items():
++            if stored.code == track.code:
++                self._tracks_by_id[stored_id] = track
++                raise TrackCodeTakenError(track.code)
+         self._codes.add(track.code)
+         self._tracks_by_id[track.id] = track
+ 

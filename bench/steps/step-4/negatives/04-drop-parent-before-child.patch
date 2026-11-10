@@ -1,0 +1,9 @@
+--- a/migrations/versions/0002_tracks.py
++++ b/migrations/versions/0002_tracks.py
+@@ -41,5 +41,5 @@ def upgrade() -> None:
+ 
+ 
+ def downgrade() -> None:
+-    op.drop_table("track_segments")
+     op.drop_table("tracks")
++    op.drop_table("track_segments")

@@ -1,0 +1,86 @@
+{
+  "_meta": {
+    "vllm_image": "vllm/vllm-openai:v0.30.0@sha256:8a69ffad015f138d7170c4ddc429e230a3bc1c1719f67e14324749df200a4b90",
+    "vllm_version": "0.30.0",
+    "transformers": "5.17.0",
+    "mistral_common": "1.11.7",
+    "common_flags": "--gpu-memory-utilization 0.95 --max-num-seqs 4; CUDA graphs on; prefix caching on (default); --tensor-parallel-size from env TP",
+    "profiles": {
+      "P1": {
+        "max_model_len": 131072,
+        "kv_cache_dtype": "fp8"
+      },
+      "P2": {
+        "max_model_len": 65536,
+        "kv_cache_dtype": "bfloat16"
+      },
+      "P2p": {
+        "max_model_len": 65536,
+        "kv_cache_dtype": "fp8"
+      }
+    }
+  },
+  "qwen3.8-27b": {
+    "hf_repo": "Qwen/Qwen3.8-27B",
+    "revision_sha": "1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0",
+    "weight_dtype": "bf16",
+    "tool_call_parser": "qwen3_coder",
+    "reasoning_parser": "qwen3",
+    "extra_flags": "--limit-mm-per-prompt '{\"image\": 0, \"video\": 0}' (text-only)",
+    "override_generation_config": {
+      "temperature": 1.0,
+      "top_p": 0.95,
+      "top_k": 20,
+      "min_p": 0.0,
+      "presence_penalty": 0.0,
+      "repetition_penalty": 1.0
+    },
+    "attention_backend": "FLASH_ATTN",
+    "launch_script": "serving/qwen3.8.sh",
+    "vllm_version": "0.30.0"
+  },
+  "gemma-4-31b": {
+    "hf_repo": "google/gemma-4-31B-it",
+    "revision_sha": "842da3794eaa0b77d5f08bae87a17459d91ff475",
+    "weight_dtype": "bf16",
+    "tool_call_parser": "gemma4",
+    "reasoning_parser": "gemma4",
+    "extra_flags": "--limit-mm-per-prompt (text-only)",
+    "override_generation_config": {
+      "temperature": 1.0,
+      "top_p": 0.95,
+      "top_k": 64
+    },
+    "attention_backend": "TRITON_ATTN",
+    "launch_script": "serving/gemma-4.sh",
+    "vllm_version": "0.30.0"
+  },
+  "nemotron-3-super-120b-a12b": {
+    "hf_repo": "nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-FP8",
+    "revision_sha": "744b1880a37996c5d56bf454ae164dfd74d77c4e",
+    "weight_dtype": "fp8",
+    "tool_call_parser": "qwen3_coder",
+    "reasoning_parser": "nemotron_v3",
+    "extra_flags": "--trust-remote-code --mamba-ssm-cache-dtype float32 (from the model card); quantization=modelopt detected by vLLM itself",
+    "override_generation_config": {
+      "temperature": 1.0,
+      "top_p": 0.95
+    },
+    "attention_backend": "FLASH_ATTN",
+    "launch_script": "serving/nemotron-3.sh",
+    "vllm_version": "0.30.0"
+  },
+  "devstral-2-123b": {
+    "hf_repo": "mistralai/Devstral-2-123B-Instruct-2512",
+    "revision_sha": "1613bf01adb5e1c6fdc196b46e6b173eae75eb4a",
+    "weight_dtype": "fp8",
+    "tool_call_parser": "mistral",
+    "extra_flags": "--tokenizer-mode mistral --config-format mistral --load-format mistral",
+    "override_generation_config": {
+      "temperature": 0.15
+    },
+    "attention_backend": "FLASH_ATTN",
+    "launch_script": "serving/devstral.sh",
+    "vllm_version": "0.30.0"
+  }
+}

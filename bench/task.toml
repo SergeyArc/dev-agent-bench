@@ -1,0 +1,108 @@
+schema_version = "1.4"
+
+# dev-agent-bench — one multi-step task, five cascading steps (L1-01 … L3-02).
+# Every step runs in a new agent session on the working copy left by the
+# previous step. Verified against Harbor 0.23.0.
+multi_step_reward_strategy = "mean"
+
+[task]
+name = "local/dev-agent-bench"
+description = "Greenfield Python service (tracksvc) built over five cascading steps."
+authors = []
+keywords = ["python", "fastapi", "sqlalchemy", "alembic", "aio-pika", "postgresql", "rabbitmq"]
+
+[metadata]
+category = "software-engineering"
+steps = ["L1-01", "L2-01", "L2-02", "L3-01", "L3-02"]
+
+[environment]
+build_timeout_sec = 1800.0
+cpus = 4
+memory_mb = 4096
+storage_mb = 10240
+# Internet is open. `allow_internet` is
+# deprecated in Harbor 0.23.0; `network_mode = "public"` is its replacement.
+network_mode = "public"
+workdir = "/app"
+
+# The entrypoint starts PostgreSQL, RabbitMQ and toxiproxy in the background;
+# the agent must not start before they are ready.
+[environment.healthcheck]
+command = "/usr/local/bin/bench-healthcheck"
+interval_sec = 2.0
+timeout_sec = 15.0
+start_period_sec = 90.0
+start_interval_sec = 2.0
+retries = 5
+
+# The agent is unprivileged: verifier state (/var/lib/bench-verifier) and
+# hidden tests (/tests) are readable by root only.
+[agent]
+user = "agent"
+timeout_sec = 3600.0  # PLACEHOLDER — real budgets come from the runner limits
+
+[verifier]
+user = "root"
+timeout_sec = 1800.0  # PLACEHOLDER
+
+# No min_reward on any step: a failed step never aborts the cascade.
+# timeout_sec is repeated in every [steps.verifier]: without it Harbor 0.23.0 gives the
+# step verifier its default of 600 s, which overrides the task-level value above.
+# BENCH_STEP tells the shared verifier which step it grades.
+# The collect hook runs after the agent phase and before artifact collection
+# and verification: infrastructure snapshot commit of /app (anonymous message).
+
+[[steps]]
+name = "step-1"  # L1-01
+[steps.verifier]
+timeout_sec = 1800.0
+[steps.verifier.env]
+BENCH_STEP = "1"
+[[steps.verifier.collect]]
+command = "/usr/local/bin/bench-snapshot step-1"
+user = "root"
+timeout_sec = 120.0
+
+[[steps]]
+name = "step-2"  # L2-01
+[steps.verifier]
+timeout_sec = 1800.0
+[steps.verifier.env]
+BENCH_STEP = "2"
+[[steps.verifier.collect]]
+command = "/usr/local/bin/bench-snapshot step-2"
+user = "root"
+timeout_sec = 120.0
+
+[[steps]]
+name = "step-3"  # L2-02
+[steps.verifier]
+timeout_sec = 1800.0
+[steps.verifier.env]
+BENCH_STEP = "3"
+[[steps.verifier.collect]]
+command = "/usr/local/bin/bench-snapshot step-3"
+user = "root"
+timeout_sec = 120.0
+
+[[steps]]
+name = "step-4"  # L3-01
+[steps.verifier]
+timeout_sec = 1800.0
+[steps.verifier.env]
+BENCH_STEP = "4"
+[[steps.verifier.collect]]
+command = "/usr/local/bin/bench-snapshot step-4"
+user = "root"
+timeout_sec = 120.0
+
+[[steps]]
+name = "step-5"  # L3-02
+[steps.verifier]
+timeout_sec = 1800.0
+[steps.verifier.env]
+BENCH_STEP = "5"
+[[steps.verifier.collect]]
+command = "/usr/local/bin/bench-snapshot step-5"
+user = "root"
+timeout_sec = 120.0

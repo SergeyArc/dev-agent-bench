@@ -1,0 +1,10 @@
+# Verifier toolchain (/opt/verifier). ruff and mypy must match the versions
+# locked for the project (environment/app/uv.lock) so that the agent and the
+# verifier see the same diagnostics.
+ruff==0.16.9
+mypy==2.3.1
+import-linter
+pytest==9.1.1
+httpx==0.28.1
+pika
+psycopg[binary]
